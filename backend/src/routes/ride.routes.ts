@@ -3,6 +3,6 @@ import { estimateRide } from "../controllers/ride.controller";
 
 const router = Router();
 
-router.get('/estimate', estimateRide);
+router.post(`/estimate`, estimateRide);
 
 export default router;

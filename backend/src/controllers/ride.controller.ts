@@ -1,99 +1,61 @@
-import { Request, Response } from 'express';
+import { Request, RequestHandler, Response } from 'express';
 import axios from 'axios';
-
-const drivers = [
-    {
-      id: 1,
-      name: "Homer Simpson",
-      description: "Olá! Sou o Homer, seu motorista camarada! Relaxe e aproveite o passeio, com direito a rosquinhas e boas risadas (e talvez alguns desvios).",
-      car: "Plymouth Valiant 1973 rosa e enferrujado",
-      rate: 2,
-      coments: "Motorista simpático, mas errou o caminho 3 vezes. O carro cheira a donuts.",
-      taxPerKm: 2.5,
-      minKm: 1
-    },
-    {
-      id: 2,
-      name: "Dominic Toretto",
-      description: "Ei, aqui é o Dom. Pode entrar, vou te levar com segurança e rapidez ao seu destino. Só não mexa no rádio, a playlist é sagrada.",
-      car: "Dodge Charger R/T 1970 modificado",
-      rate: 4,
-      coments: "Que viagem incrível! O carro é um show à parte e o motorista, apesar de ter uma cara de poucos amigos, foi super gente boa. Recomendo!",
-      taxPerKm: 5.0,
-      minKm: 5
-    },
-    {
-      id: 3,
-      name: "James Bond",
-      description: "Boa noite, sou James Bond. À seu dispor para um passeio suave e discreto. Aperte o cinto e aproveite a viagem.",
-      car: "Aston Martin DB5 clássico",
-      rate: 5,
-      coments: "Serviço impecável! O motorista é a própria definição de classe e o carro é simplesmente magnífico. Uma experiência digna de um agente secreto.",
-      taxPerKm: 10.0,
-      minKm: 10
-    }
-  ];
-  
+import { drivers } from '../utils/drives';
 
 export const estimateRide = async (req: Request, res: Response) => {
 
-  const origin = { latitude: -23.4259933, longitude: -46.5082575 } // Origem: Casa
-  const destination = { latitude: -23.4296051, longitude: -46.5044748 }  // Destino: Igreja
   const apiKey = process.env.GOOGLE_API_KEY;
-  console.log(apiKey)
+  if (!apiKey) {
+    res.status(500).json({ error: "Chave da API não configurada." });
+    return;
+  }
+
   try {
     const response = await axios.post(
-      'https://routes.googleapis.com/directions/v2:computeRoutes',
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
       {
-        'origin': {
-          'location': {
-            'latLng': {
-              'latitude': origin.latitude,
-              'longitude': origin.longitude
-            }
-          }
+        origin: { address: req.body.origin },
+        destination: { address: req.body.destination },
+        travelMode: "DRIVE",
+        routingPreference: "TRAFFIC_AWARE",
+        computeAlternativeRoutes: false,
+        routeModifiers: {
+          avoidTolls: false,
+          avoidHighways: false,
+          avoidFerries: false,
         },
-        'destination': {
-          'location': {
-            'latLng': {
-              'latitude': destination.latitude,
-              'longitude': destination.longitude
-            }
-          }
-        },
-        'travelMode': 'DRIVE',
-        'routingPreference': 'TRAFFIC_AWARE',
-        'computeAlternativeRoutes': false,
-        'routeModifiers': {
-          'avoidTolls': false,
-          'avoidHighways': false,
-          'avoidFerries': false
-        },
-        'languageCode': 'en-US',
-        'units': 'IMPERIAL'
+        languageCode: "en-US",
+        units: "IMPERIAL",
       },
       {
         headers: {
-          'Content-Type': 'application/json',
-          'X-Goog-Api-Key': 'AIzaSyBfXDRdUC9lxBxHFbFW_D2bumjG39zlcQc',
-          'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline'
-        }
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.legs.steps",
+        },
       }
     );
 
     const route = response.data.routes[0];
     const distanceKm = route.distanceMeters / 1000;
     const driversWithValues = drivers
-      .filter(driver => driver.minKm < distanceKm)
-      .map(driver => ({
+      .filter((driver) => driver.minKm < distanceKm)
+      .map((driver) => ({
         ...driver,
-        price: distanceKm * driver.taxPerKm
-    }));
-    console.log(driversWithValues)
+        price: Math.floor((distanceKm * driver.taxPerKm) * 100) / 100,
+      }));
 
+    const startLocation = route.legs[0].steps[0]?.startLocation;
+    const endLocation = route.legs[0].steps[route.legs[0].steps.length - 1]?.endLocation;
+    
+    res.status(200).json({statusCode: "200", description: "Operação realizada com sucesso", response: {origin: startLocation.latLng, destination: endLocation.latLng, distance: route.distanceMeters, duration: route.duration, options: driversWithValues, routeResponse: response.data.routes[0]} });
   } catch (error: any) {
-    console.error("Erro ao calcular a rota:", error.response?.data.error.details || error.message.error.details);
+    console.error(
+      "Erro ao calcular a rota:",
+      error.response?.data || error.message
+    );
+    res.status(400).json({statusCode: "400", description: "Os dados fornecidos no corpo da requisição são inválidos", response: {error_code: "INVALID_DATA", error_description: error.message || error.response.data} });
+    return;
   }
   
-    res.status(200).json(drivers);
 }
