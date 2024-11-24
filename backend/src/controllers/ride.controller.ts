@@ -4,6 +4,12 @@ import { drivers } from '../utils/drives';
 import RideMade from '../models/RideMade';
 import { RideMadeAttributes } from '../types/RideMade';
 
+type WhereConditionAttr = {
+  customer_id: string;
+  driver_id?: number;
+}
+
+
 export const estimateRide: RequestHandler = async (req, res) => {
 
   const apiKey = process.env.GOOGLE_API_KEY;
@@ -106,19 +112,27 @@ export const getRideByCustomerAndDriverIDs: RequestHandler = async (req, res) =>
     res.status(404).json({statusCode: "404", description: "Nenhum registro encontrado", response: {error_code: "NO_RIDES_FOUND", error_description: 'Usuário não informado'}});
     return;
   }
-  if(driverId === undefined || driverId === null || driverId === ''){
-    res.status(404).json({statusCode: "404", description: "Nenhum registro encontrado", response: {error_code: "NO_RIDES_FOUND", error_description: 'Motorista não informado'}});
-    return
-  }
 
-  let validDriver = findDriverById(Number(driverId));
-  if (!validDriver){
-    res.status(404).json({statusCode: "404", description: "Motorista inválido", response: {error_code: "INVALID_DRIVER", error_description: 'Id do motorista inválido'}});
-    return;
+  if(driverId){
+    let validDriver = findDriverById(Number(driverId));
+    if (!validDriver){
+      res.status(404).json({statusCode: "404", description: "Motorista inválido", response: {error_code: "INVALID_DRIVER", error_description: 'Id do motorista inválido'}});
+      return;
+    }  
   }
 
   try {
-    const ride = await RideMade.findAll({ where: { customer_id: customerId, driver_id: Number(driverId) } });
+    const whereCondition: WhereConditionAttr = { customer_id: customerId };
+
+    if (driverId) {
+      whereCondition.driver_id = Number(driverId);
+    }
+
+    const ride = await RideMade.findAll({
+      where: whereCondition,
+      order: [['id', 'DESC']],
+    });
+
     if (!ride) {
       res.status(404).json({statusCode: "404", description: "Nenhum registro encontrado", response: {error_code: "NO_RIDES_FOUND", error_description: 'Nenhum registro encontrado'}});
       return;
