@@ -1,16 +1,45 @@
 version: '3.9'
+
 services:
   postgres:
     image: postgres:16.6
     container_name: postgres
     ports:
-      - '5432:5432'
+      - '5432:5432'  # A porta 5432 do container será exposta para a porta 5432 na máquina host
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: shopper
     volumes:
       - shopper_pg_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: node_api
+    ports:
+      - '8080:8080'  # A porta 8080 do container será exposta para a porta 8080 na máquina host
+    environment:
+      DB_HOST: postgres  # O nome do serviço do banco de dados PostgreSQL no Docker Compose
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASS: postgres
+      DB_NAME: shopper
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+    depends_on:
+      - postgres  # Garante que o serviço do banco de dados seja iniciado antes do app
+    networks:
+      - backend
+    volumes:
+      - ./.env:/app/.env
+    command: ["npm", "start"]  # Comando para rodar a aplicação em modo de desenvolvimento
 
 volumes:
   shopper_pg_data:
+
+networks:
+  backend:
+    driver: bridge
