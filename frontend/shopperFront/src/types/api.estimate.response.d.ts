@@ -3,7 +3,7 @@ type LatLng = {
     longitude: number;
 };
 
-type DriverOption = {
+export type DriverOption = {
     id: number;
     name: string;
     description: string;
